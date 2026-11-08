@@ -1,0 +1,6 @@
+
+praw
+xmltodict
+pandas
+numpy
+python-dotenv
