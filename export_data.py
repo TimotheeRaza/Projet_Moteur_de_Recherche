@@ -32,7 +32,9 @@ try:
         titre = post.title or ""
         corps = post.selftext if post.selftext else (post.url or "")
         texte_brut = f"{titre}. {corps}"
-        texte_propre = re.sub(r'\s+', ' ', texte_brut).strip()
+        
+        texte_propre = texte_brut.replace('\n', ' ').replace('\r', ' ')
+        texte_propre = re.sub(r'\s+', ' ', texte_propre).strip()
         
         tous_les_textes.append(texte_propre)
         toutes_les_origines.append("reddit")
@@ -65,7 +67,9 @@ try:
             resume_art = resume_art.get('#text', '')
             
         texte_brut_arxiv = f"{titre_art}. {resume_art}"
-        texte_propre_arxiv = re.sub(r'\s+', ' ', texte_brut_arxiv).strip()
+        
+        texte_propre_arxiv = texte_brut_arxiv.replace('\n', ' ').replace('\r', ' ')
+        texte_propre_arxiv = re.sub(r'\s+', ' ', texte_propre_arxiv).strip()
         
         tous_les_textes.append(texte_propre_arxiv)
         toutes_les_origines.append("arxiv")

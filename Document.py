@@ -1,6 +1,7 @@
 class Document:
     """Classe de base représentant un document."""
-    def __init__(self, titre="", auteur="", date="", url="", texte=""):
+    def __init__(self, id_doc="", titre="", auteur="", date="", url="", texte=""):
+        self.id_doc = id_doc
         self.titre = titre
         self.auteur = auteur
         self.date = date

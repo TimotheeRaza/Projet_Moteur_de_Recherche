@@ -29,29 +29,56 @@ class Corpus:
         return f"Corpus(nom='{self.nom}', nb_documents={len(self.documents)}, nb_auteurs={len(self.authors)})"
 
     def add_document(self, doc: Document):
-        if doc.id_doc not in self.documents:
-            self.documents[doc.id_doc] = doc
+        doc_id = getattr(doc, 'id_doc', getattr(doc, 'id', None))
+        if not doc_id:
+            doc_id = str(len(self.documents))
+            
+        if doc_id not in self.documents:
+            self.documents[doc_id] = doc
             self._texte_global = None
             
-            auteur_nom = doc.auteur
+            auteur_nom = getattr(doc, 'auteur', 'Inconnu')
             if auteur_nom not in self.authors:
                 self.authors[auteur_nom] = Author(auteur_nom)
-            self.authors[auteur_nom].add(doc)
+            
+            try:
+                self.authors[auteur_nom].add(doc)
+            except TypeError:
+                try:
+                    self.authors[auteur_nom].add(doc_id)
+                except Exception:
+                    pass
 
     def load_from_csv(self, filename):
-        df = pd.read_csv(filename, sep='\t', encoding='utf-8')
+        df = pd.read_csv(filename, sep='\t', encoding='utf-8', on_bad_lines='skip')
+        
         for _, row in df.iterrows():
             from DocumentFactory import DocumentFactory
+            
+            doc_id = str(row.get('id', ''))
+            texte_brut = str(row.get('texte', ''))
+            if not texte_brut or texte_brut.lower() == 'nan':
+                texte_brut = ''
+                
+            origine_val = str(row.get('origine', 'reddit'))
+            titre = texte_brut[:50] + "..." if len(texte_brut) > 0 else "Sans titre"
+            
+            # Création du document
             doc = DocumentFactory.create_document(
-                id_doc=row['id'],
-                titre=row.get('titre', 'Sans titre'),
-                auteur=row.get('origine', 'Inconnu'),
-                date=row.get('date', '2026'),
-                texte=row['texte'],
-                type_doc=row.get('origine', 'document')
+                origine_val.strip(),
+                id_doc=doc_id.strip(),
+                titre=titre,
+                auteur=origine_val.strip(),
+                date='2026',
+                texte=texte_brut.strip()
             )
+            
+        
+            doc.texte = texte_brut.strip()
+            doc.text = texte_brut.strip()
+            
             self.add_document(doc)
-
+   
     def save(self, filename):
         data = [{
             'id': doc.id_doc,
@@ -86,7 +113,7 @@ class Corpus:
             return ""
         texte = texte.lower()
         texte = re.sub(r'[\n\t]+', ' ', texte)
-        texte = re.sub(r'[^a-zà-ÿ\s]', ' ', texte)
+        texte = re.sub(r'[^a-zà-ÿ0-9\s]', ' ', texte)
         return re.sub(r'\s+', ' ', texte).strip()
 
     def calculer_statistiques(self):
@@ -94,20 +121,27 @@ class Corpus:
         df_docs_contenant_mot = {}
 
         for doc in self.documents.values():
-            mots = self.nettoyer_texte(doc.texte).split()
+            # On cherche le texte dynamiquement dans tous les attributs possibles du document
+            texte_doc = getattr(doc, 'texte', getattr(doc, 'text', getattr(doc, 'content', '')))
+            mots = self.nettoyer_texte(texte_doc).split()
+            
             mots_uniques = set(mots)
             for mot in mots:
                 vocabulaire_dict[mot] = vocabulaire_dict.get(mot, 0) + 1
             for mot in mots_uniques:
                 df_docs_contenant_mot[mot] = df_docs_contenant_mot.get(mot, 0) + 1
 
-        data_stats = [{
-            'mot': mot, 
-            'frequence_totale': freq, 
-            'doc_frequency': df_docs_contenant_mot.get(mot, 0)
-        } for mot, freq in vocabulaire_dict.items()]
+        if not vocabulaire_dict:
+            data_stats = [{'mot': 'dummy_word', 'frequence_totale': 0, 'doc_frequency': 0}]
+        else:
+            data_stats = [{
+                'mot': mot, 
+                'frequence_totale': freq, 
+                'doc_frequency': df_docs_contenant_mot.get(mot, 0)
+            } for mot, freq in vocabulaire_dict.items()]
+            
         self.df_stats = pd.DataFrame(data_stats).set_index('mot')
-
+    
     def construire_vocabulaire_et_matrices(self):
         if self.df_stats is None or self.df_stats.empty:
             self.calculer_statistiques()
